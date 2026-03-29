@@ -1,0 +1,653 @@
+﻿{
+  "name": "WhatsappToGmailBot",
+  "type": "SHARED",
+  "summary": "",
+  "description": "",
+  "tags": [],
+  "blogUrl": "",
+  "metadata": {
+    "externalId": "t9E6C4tfHn1u9EQm6KdOL"
+  },
+  "author": "Anubhav Kumar Srivastava",
+  "categories": [],
+  "pieces": [
+    "@activepieces/piece-webhook",
+    "@activepieces/piece-store",
+    "@activepieces/piece-flow-helper",
+    "@activepieces/piece-gmail"
+  ],
+  "flows": [
+    {
+      "displayName": "WhatsappToGmailBot",
+      "trigger": {
+        "name": "trigger",
+        "valid": true,
+        "displayName": "Catch Webhook",
+        "nextAction": {
+          "name": "step_1",
+          "skip": false,
+          "type": "CODE",
+          "valid": true,
+          "settings": {
+            "input": {
+              "webhookBody": "{{trigger['body']['payload']}}"
+            },
+            "sampleData": {},
+            "sourceCode": {
+              "code": "export const code = async (inputs) => {\n  const payload = inputs.webhookBody;\n  \n  const text = payload?.body || '';\n  const sender = payload?.from || '';\n  const hasMedia = payload?.hasMedia || false;\n  const isGroup = sender.includes('@g.us');\n  const isStatus = sender === 'status@broadcast';\n  const isEmpty = !text || text.trim() === '';\n  const isApiMessage = payload?.source === 'api';\n\n  if (isApiMessage) return { ignore: true, reason: 'botMessage' };\n  if (isStatus || isGroup) return { ignore: true, reason: 'invalid' };\n  if (isEmpty && !hasMedia) return { ignore: true, reason: 'invalid' };\n\n  const isBotMessage =\n    text.startsWith('👋') ||\n    text.startsWith('✅') ||\n    text.startsWith('📋') ||\n    text.startsWith('⏳') ||\n    text.startsWith('❌') ||\n    text.startsWith('📧');\n\n  if (isBotMessage) return { ignore: true, reason: 'botMessage' };\n\n  const lower = text.toLowerCase().trim();\n  let step = 'freetext';\n  let value = text.trim();\n\n  const isHello = ['hello', 'hi', 'helo', 'hii', 'hey', 'start', 'hlo'].includes(lower);\n\n  if (isHello) {\n    step = 'hello';\n  } else if (lower.startsWith('to:')) {\n    step = 'recipient';\n    value = text.replace(/^to:\\s*/i, '').trim();\n  } else if (lower.startsWith('body:') || lower.startsWith('message:')) {\n    step = 'body';\n    value = text.replace(/^(body|message):\\s*/i, '').trim();\n  } else if (lower === 'skip') {\n    step = 'skip_attachment';\n  } else if (lower === 'yes') {\n    step = 'confirm_yes';\n  } else if (lower === 'no') {\n    step = 'confirm_no';\n  } else if (hasMedia) {\n    step = 'media';\n    value = payload?.media?.url || payload?.id || 'media_received';\n  }\n\n  return {\n    step,\n    value,\n    sender,\n    rawText: text,\n    ignore: false,\n    hasMedia\n  };\n};",
+              "packageJson": "{}"
+            },
+            "errorHandlingOptions": {
+              "retryOnFailure": {
+                "value": false
+              },
+              "continueOnFailure": {
+                "value": false
+              }
+            }
+          },
+          "nextAction": {
+            "name": "step_2",
+            "skip": false,
+            "type": "ROUTER",
+            "valid": true,
+            "children": [
+              {
+                "name": "step_3",
+                "skip": false,
+                "type": "PIECE",
+                "valid": true,
+                "settings": {
+                  "input": {
+                    "key": "{{step_1['sender']}}_state",
+                    "store_scope": "COLLECTION",
+                    "defaultValue": "{}"
+                  },
+                  "pieceName": "@activepieces/piece-store",
+                  "actionName": "get",
+                  "sampleData": {},
+                  "pieceVersion": "0.6.14",
+                  "propertySettings": {
+                    "key": {
+                      "type": "MANUAL"
+                    },
+                    "store_scope": {
+                      "type": "MANUAL"
+                    },
+                    "defaultValue": {
+                      "type": "MANUAL"
+                    }
+                  },
+                  "errorHandlingOptions": {
+                    "retryOnFailure": {
+                      "value": false
+                    },
+                    "continueOnFailure": {
+                      "value": false
+                    }
+                  }
+                },
+                "nextAction": {
+                  "name": "step_4",
+                  "skip": false,
+                  "type": "CODE",
+                  "valid": true,
+                  "settings": {
+                    "input": {
+                      "step": "{{step_1['step']}}",
+                      "value": "{{step_1['value']}}",
+                      "sender": "{{step_1['sender']}}",
+                      "storedState": "{{step_3}}"
+                    },
+                    "sampleData": {},
+                    "sourceCode": {
+                      "code": "export const code = async (inputs) => {\n  let state = {};\n  try {\n    const raw = inputs.storedState;\n    if (typeof raw === 'string' && raw.trim() !== '') state = JSON.parse(raw);\n    else if (typeof raw === 'object' && raw !== null) state = raw;\n  } catch(e) { state = {}; }\n\n  const step = inputs.step;\n  const value = inputs.value;\n  const sender = inputs.sender;\n\n  let reply = '';\n  let newState = { ...state };\n  let readyToSend = false;\n\n  if (!state.stage && step !== 'hello') {\n    return {\n      reply: '',\n      newState: JSON.stringify({}),\n      readyToSend: false,\n      recipient: '',\n      body: '',\n      attachment: null,\n      sender,\n      ignoreMessage: true\n    };\n  }\n\n  if (!state.stage || step === 'hello' || step === 'confirm_no') {\n    newState = { stage: 'ask_recipient' };\n    reply = `👋 *Hello! I will help you send a formal email.*\\n\\nWho to send it to?\\n\\n📧 Reply: *To: email@example.com*`;\n\n  } else if (state.stage === 'ask_recipient' && step === 'recipient') {\n    newState.recipient = value;\n    newState.stage = 'ask_body';\n    reply = `✅ Sending to: *${value}*\\n\\nNow type your message (any language, informal is fine!):\\n\\n💬 Reply: *Body: your message here*`;\n\n  } else if (state.stage === 'ask_body' && step === 'body') {\n    newState.body = value;\n    newState.stage = 'ask_attachment';\n    reply = `✅ *Message saved!*\\n\\nDo you want to attach a file?\\n\\n📎 Send file now\\n⏭️ Or reply *SKIP*`;\n\n  } else if (state.stage === 'ask_attachment') {\n    if (step === 'skip_attachment') {\n      newState.attachment = null;\n    } else if (step === 'media') {\n      newState.attachment = value;\n    } else {\n      return {\n        reply: `📎 Please send a file/photo OR reply *SKIP*`,\n        newState: JSON.stringify(state),\n        readyToSend: false,\n        recipient: state.recipient || '',\n        body: state.body || '',\n        attachment: null,\n        sender,\n        ignoreMessage: false\n      };\n    }\n    newState.stage = 'confirm';\n    reply = `📋 *Review:*\\n\\n📧 *To:* ${newState.recipient}\\n💬 *Message:* ${newState.body}\\n📎 *Attachment:* ${newState.attachment ? 'Yes ✅' : 'None'}\\n\\nReply *YES* to send\\nReply *NO* to start over`;\n\n  } else if (state.stage === 'confirm' && step === 'confirm_yes') {\n    newState.stage = 'done';\n    readyToSend = true;\n    reply = `⏳ *Sending your email now...* Please wait!`;\n\n  } else {\n    return {\n      reply: '',\n      newState: JSON.stringify({}),\n      readyToSend: false,\n      recipient: '',\n      body: '',\n      attachment: null,\n      sender,\n      ignoreMessage: true\n    };\n  }\n\n  return {\n    reply,\n    newState: JSON.stringify(newState),\n    readyToSend,\n    recipient: newState.recipient || '',\n    body: newState.body || '',\n    attachment: newState.attachment || null,\n    sender,\n    ignoreMessage: false\n  };\n};",
+                      "packageJson": "{}"
+                    },
+                    "errorHandlingOptions": {
+                      "retryOnFailure": {
+                        "value": false
+                      },
+                      "continueOnFailure": {
+                        "value": false
+                      }
+                    }
+                  },
+                  "nextAction": {
+                    "name": "step_11",
+                    "skip": false,
+                    "type": "ROUTER",
+                    "valid": true,
+                    "children": [
+                      null,
+                      {
+                        "name": "step_12",
+                        "skip": false,
+                        "type": "PIECE",
+                        "valid": true,
+                        "settings": {
+                          "input": {},
+                          "pieceName": "@activepieces/piece-flow-helper",
+                          "actionName": "stopFlow",
+                          "sampleData": {},
+                          "pieceVersion": "0.1.3",
+                          "propertySettings": {},
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": false
+                            },
+                            "continueOnFailure": {
+                              "value": false
+                            }
+                          }
+                        },
+                        "displayName": "Stop Flow",
+                        "lastUpdatedDate": "2026-03-29T14:51:13.488Z"
+                      }
+                    ],
+                    "settings": {
+                      "branches": [
+                        {
+                          "branchName": "Branch 1",
+                          "branchType": "CONDITION",
+                          "conditions": [
+                            [
+                              {
+                                "operator": "BOOLEAN_IS_FALSE",
+                                "firstValue": "{{step_4['ignoreMessage']}}"
+                              }
+                            ]
+                          ]
+                        },
+                        {
+                          "branchName": "Otherwise",
+                          "branchType": "FALLBACK"
+                        }
+                      ],
+                      "sampleData": {},
+                      "executionType": "EXECUTE_FIRST_MATCH"
+                    },
+                    "nextAction": {
+                      "name": "step_6",
+                      "skip": false,
+                      "type": "CODE",
+                      "valid": true,
+                      "settings": {
+                        "input": {
+                          "reply": "{{step_4['reply']}}",
+                          "sender": "{{step_4['sender']}}"
+                        },
+                        "sampleData": {},
+                        "sourceCode": {
+                          "code": "export const code = async (inputs) => {\n  // Don't send if reply is empty\n  if (!inputs.reply || inputs.reply.trim() === '') {\n    return { status: 'skipped' };\n  }\n\n  const tunnelUrl = 'ENTER_YOUR_HUGGING_FACE_URL';\n  const apiKey = 'ENTER_WAHA_API_KEY';\n  \n  const payload = {\n    chatId: inputs.sender,\n    text: inputs.reply,\n    session: 'default'\n  };\n\n  const response = await fetch(`${tunnelUrl}/api/sendText`, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'X-Api-Key': apiKey\n    },\n    body: JSON.stringify(payload)\n  });\n\n  const result = await response.json();\n  return { status: response.status, result };\n};",
+                          "packageJson": "{}"
+                        },
+                        "errorHandlingOptions": {
+                          "retryOnFailure": {
+                            "value": false
+                          },
+                          "continueOnFailure": {
+                            "value": false
+                          }
+                        }
+                      },
+                      "nextAction": {
+                        "name": "step_5",
+                        "skip": false,
+                        "type": "PIECE",
+                        "valid": true,
+                        "settings": {
+                          "input": {
+                            "key": "{{step_1['sender']}}_state",
+                            "value": "{{step_4['newState']}}",
+                            "store_scope": "COLLECTION"
+                          },
+                          "pieceName": "@activepieces/piece-store",
+                          "actionName": "put",
+                          "sampleData": {},
+                          "pieceVersion": "0.6.14",
+                          "propertySettings": {
+                            "key": {
+                              "type": "MANUAL"
+                            },
+                            "value": {
+                              "type": "MANUAL"
+                            },
+                            "store_scope": {
+                              "type": "MANUAL"
+                            }
+                          },
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": false
+                            },
+                            "continueOnFailure": {
+                              "value": false
+                            }
+                          }
+                        },
+                        "nextAction": {
+                          "name": "step_7",
+                          "skip": false,
+                          "type": "ROUTER",
+                          "valid": true,
+                          "children": [
+                            {
+                              "name": "step_8",
+                              "skip": false,
+                              "type": "CODE",
+                              "valid": true,
+                              "settings": {
+                                "input": {
+                                  "apiKey": "ENTER_GROK_API_KEY",
+                                  "emailBody": "{{step_4['body']}}"
+                                },
+                                "sampleData": {},
+                                "sourceCode": {
+                                  "code": "export const code = async (inputs) => {\n  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${inputs.apiKey}`\n    },\n    body: JSON.stringify({\n      model: 'llama-3.3-70b-versatile',\n      messages: [{\n        role: 'user',\n       content: `Convert this informal message into a professional formal email. The sender's name is Anubhav Kumar Srivastava. Return ONLY a raw JSON object with exactly two keys: \"subject\" and \"body\". The body must have proper email structure with line breaks using \\\\n. Format exactly like this:\n\nDear [Name/Sir/Madam],\n\n[Opening line]\n\n[Main content]\n\n[Closing line]\n\nYours sincerely,\nAnubhav Kumar Srivastava\n\nNo markdown, no backticks, no extra text.\n\nInformal message:\n${inputs.emailBody}`\n      }],\n      temperature: 0.7\n    })\n  });\n\n  const data = await response.json();\n  const text = data.choices[0].message.content;\n  const cleaned = text.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(cleaned);\n  \n  return {\n    subject: parsed.subject,\n    emailBody: parsed.body.replace(/\\n/g, '<br>')\n  };\n};",
+                                  "packageJson": "{}"
+                                },
+                                "errorHandlingOptions": {
+                                  "retryOnFailure": {
+                                    "value": false
+                                  },
+                                  "continueOnFailure": {
+                                    "value": false
+                                  }
+                                }
+                              },
+                              "nextAction": {
+                                "name": "step_15",
+                                "skip": false,
+                                "type": "CODE",
+                                "valid": true,
+                                "settings": {
+                                  "input": {
+                                    "attachmentUrl": "{{step_4['attachment']}}"
+                                  },
+                                  "sampleData": {},
+                                  "sourceCode": {
+                                    "code": "export const code = async (inputs) => {\n  if (!inputs.attachmentUrl || inputs.attachmentUrl === 'media_received') {\n    return { hasAttachment: false, fileName: null, fileUrl: null };\n  }\n\n  let url = inputs.attachmentUrl;\n  url = url.replace('http://localhost:3000', 'ENTER_YOUR_HUGGING_FACE_URL');\n  url = url.replace('http://127.0.0.1:3000', 'ENTER_YOUR_HUGGING_FACE_URL');\n  url = url.replace('http://localhost:7860', 'ENTER_YOUR_HUGGING_FACE_URL');\n\n  const response = await fetch(url, {\n    headers: { 'X-Api-Key': 'ENTER_WAHA_API_KEY' }\n  });\n\n  const buffer = await response.arrayBuffer();\n  const base64 = Buffer.from(buffer).toString('base64');\n  const contentType = response.headers.get('content-type')?.split(';')[0] || 'image/jpeg';\n  const ext = contentType.split('/')[1] || 'jpg';\n\n  return {\n    hasAttachment: true,\n    fileUrl: `data:${contentType};base64,${base64}`,\n    fileName: `attachment.${ext}`\n  };\n};",
+                                    "packageJson": "{}"
+                                  },
+                                  "errorHandlingOptions": {
+                                    "retryOnFailure": {
+                                      "value": false
+                                    },
+                                    "continueOnFailure": {
+                                      "value": false
+                                    }
+                                  }
+                                },
+                                "nextAction": {
+                                  "name": "step_9",
+                                  "skip": false,
+                                  "type": "ROUTER",
+                                  "valid": true,
+                                  "children": [
+                                    {
+                                      "name": "step_16",
+                                      "skip": false,
+                                      "type": "PIECE",
+                                      "valid": true,
+                                      "settings": {
+                                        "input": {
+                                          "cc": [],
+                                          "bcc": [],
+                                          "auth": "{{connections['GMAIL_CONNECTION']}}",
+                                          "body": "{{step_8['emailBody']}}",
+                                          "draft": false,
+                                          "subject": "{{step_8['subject']}}",
+                                          "receiver": [
+                                            "{{step_4['recipient']}}"
+                                          ],
+                                          "reply_to": [],
+                                          "body_type": "html",
+                                          "attachments": [
+                                            {
+                                              "file": "{{step_15['fileUrl']}}",
+                                              "name": "{{step_15['fileName']}}"
+                                            }
+                                          ]
+                                        },
+                                        "pieceName": "@activepieces/piece-gmail",
+                                        "actionName": "send_email",
+                                        "pieceVersion": "0.11.6",
+                                        "propertySettings": {
+                                          "cc": {
+                                            "type": "MANUAL"
+                                          },
+                                          "bcc": {
+                                            "type": "MANUAL"
+                                          },
+                                          "body": {
+                                            "type": "MANUAL"
+                                          },
+                                          "from": {
+                                            "type": "MANUAL"
+                                          },
+                                          "draft": {
+                                            "type": "MANUAL"
+                                          },
+                                          "subject": {
+                                            "type": "MANUAL"
+                                          },
+                                          "receiver": {
+                                            "type": "MANUAL"
+                                          },
+                                          "reply_to": {
+                                            "type": "MANUAL"
+                                          },
+                                          "body_type": {
+                                            "type": "MANUAL"
+                                          },
+                                          "attachments": {
+                                            "type": "MANUAL"
+                                          },
+                                          "in_reply_to": {
+                                            "type": "MANUAL"
+                                          },
+                                          "sender_name": {
+                                            "type": "MANUAL"
+                                          }
+                                        },
+                                        "errorHandlingOptions": {
+                                          "retryOnFailure": {
+                                            "value": false
+                                          },
+                                          "continueOnFailure": {
+                                            "value": false
+                                          }
+                                        }
+                                      },
+                                      "displayName": "Send Email",
+                                      "lastUpdatedDate": "2026-03-29T14:51:13.494Z"
+                                    },
+                                    {
+                                      "name": "step_17",
+                                      "skip": false,
+                                      "type": "PIECE",
+                                      "valid": true,
+                                      "settings": {
+                                        "input": {
+                                          "cc": [],
+                                          "bcc": [],
+                                          "auth": "{{connections['GMAIL_CONNECTION']}}",
+                                          "body": "{{step_8['emailBody']}}",
+                                          "draft": false,
+                                          "subject": "{{step_8['subject']}}",
+                                          "receiver": [
+                                            "{{step_4['recipient']}}"
+                                          ],
+                                          "reply_to": [],
+                                          "body_type": "html",
+                                          "attachments": []
+                                        },
+                                        "pieceName": "@activepieces/piece-gmail",
+                                        "actionName": "send_email",
+                                        "pieceVersion": "0.11.6",
+                                        "propertySettings": {
+                                          "cc": {
+                                            "type": "MANUAL"
+                                          },
+                                          "bcc": {
+                                            "type": "MANUAL"
+                                          },
+                                          "body": {
+                                            "type": "MANUAL"
+                                          },
+                                          "from": {
+                                            "type": "MANUAL"
+                                          },
+                                          "draft": {
+                                            "type": "MANUAL"
+                                          },
+                                          "subject": {
+                                            "type": "MANUAL"
+                                          },
+                                          "receiver": {
+                                            "type": "MANUAL"
+                                          },
+                                          "reply_to": {
+                                            "type": "MANUAL"
+                                          },
+                                          "body_type": {
+                                            "type": "MANUAL"
+                                          },
+                                          "attachments": {
+                                            "type": "MANUAL"
+                                          },
+                                          "in_reply_to": {
+                                            "type": "MANUAL"
+                                          },
+                                          "sender_name": {
+                                            "type": "MANUAL"
+                                          }
+                                        },
+                                        "errorHandlingOptions": {
+                                          "retryOnFailure": {
+                                            "value": false
+                                          },
+                                          "continueOnFailure": {
+                                            "value": false
+                                          }
+                                        }
+                                      },
+                                      "displayName": "Send Email",
+                                      "lastUpdatedDate": "2026-03-29T14:51:13.495Z"
+                                    }
+                                  ],
+                                  "settings": {
+                                    "branches": [
+                                      {
+                                        "branchName": "Branch 1",
+                                        "branchType": "CONDITION",
+                                        "conditions": [
+                                          [
+                                            {
+                                              "operator": "BOOLEAN_IS_TRUE",
+                                              "firstValue": "{{step_15['hasAttachment']}}"
+                                            }
+                                          ]
+                                        ]
+                                      },
+                                      {
+                                        "branchName": "Otherwise",
+                                        "branchType": "FALLBACK"
+                                      }
+                                    ],
+                                    "sampleData": {},
+                                    "executionType": "EXECUTE_FIRST_MATCH"
+                                  },
+                                  "nextAction": {
+                                    "name": "step_10",
+                                    "skip": false,
+                                    "type": "CODE",
+                                    "valid": true,
+                                    "settings": {
+                                      "input": {
+                                        "sender": "{{step_4['sender']}}",
+                                        "subject": "{{step_8['subject']}}",
+                                        "recipient": "{{step_4['recipient']}}"
+                                      },
+                                      "sampleData": {},
+                                      "sourceCode": {
+                                        "code": "export const code = async (inputs) => {\n  const payload = {\n    chatId: inputs.sender,\n    text: `✅ *Email sent successfully!*\\n\\n📧 *To:* ${inputs.recipient}\\n📌 *Subject:* ${inputs.subject}\\n\\nHave a great day! 😊`,\n    session: 'default'\n  };\n\n  const response = await fetch('ENTER_YOUR_HUGGING_FACE_URL/api/sendText', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'X-Api-Key': 'ENTER_WAHA_API_KEY'\n    },\n    body: JSON.stringify(payload)\n  });\n\n  return { status: response.status };\n};",
+                                        "packageJson": "{}"
+                                      },
+                                      "errorHandlingOptions": {
+                                        "retryOnFailure": {
+                                          "value": false
+                                        },
+                                        "continueOnFailure": {
+                                          "value": false
+                                        }
+                                      }
+                                    },
+                                    "displayName": "Code",
+                                    "lastUpdatedDate": "2026-03-29T14:51:13.493Z"
+                                  },
+                                  "displayName": "Router",
+                                  "lastUpdatedDate": "2026-03-29T14:51:13.492Z"
+                                },
+                                "displayName": "Code",
+                                "lastUpdatedDate": "2026-03-29T14:51:13.552Z"
+                              },
+                              "displayName": "Code",
+                              "lastUpdatedDate": "2026-03-29T14:51:13.490Z"
+                            },
+                            {
+                              "name": "step_14",
+                              "skip": false,
+                              "type": "PIECE",
+                              "valid": true,
+                              "settings": {
+                                "input": {},
+                                "pieceName": "@activepieces/piece-flow-helper",
+                                "actionName": "stopFlow",
+                                "sampleData": {},
+                                "pieceVersion": "0.1.3",
+                                "propertySettings": {},
+                                "errorHandlingOptions": {
+                                  "retryOnFailure": {
+                                    "value": false
+                                  },
+                                  "continueOnFailure": {
+                                    "value": false
+                                  }
+                                }
+                              },
+                              "displayName": "Stop Flow",
+                              "lastUpdatedDate": "2026-03-29T14:51:13.497Z"
+                            }
+                          ],
+                          "settings": {
+                            "branches": [
+                              {
+                                "branchName": "Branch 1",
+                                "branchType": "CONDITION",
+                                "conditions": [
+                                  [
+                                    {
+                                      "operator": "BOOLEAN_IS_TRUE",
+                                      "firstValue": "{{step_4['readyToSend']}}"
+                                    }
+                                  ]
+                                ]
+                              },
+                              {
+                                "branchName": "Otherwise",
+                                "branchType": "FALLBACK"
+                              }
+                            ],
+                            "sampleData": {},
+                            "executionType": "EXECUTE_FIRST_MATCH"
+                          },
+                          "displayName": "Router",
+                          "lastUpdatedDate": "2026-03-29T14:51:13.489Z"
+                        },
+                        "displayName": "Put",
+                        "lastUpdatedDate": "2026-03-29T14:51:13.489Z"
+                      },
+                      "displayName": "Code",
+                      "lastUpdatedDate": "2026-03-29T14:51:13.487Z"
+                    },
+                    "displayName": "Router",
+                    "lastUpdatedDate": "2026-03-29T14:51:13.487Z"
+                  },
+                  "displayName": "Code",
+                  "lastUpdatedDate": "2026-03-29T14:51:13.487Z"
+                },
+                "displayName": "Get",
+                "lastUpdatedDate": "2026-03-29T14:51:13.486Z"
+              },
+              {
+                "name": "step_13",
+                "skip": false,
+                "type": "PIECE",
+                "valid": true,
+                "settings": {
+                  "input": {},
+                  "pieceName": "@activepieces/piece-flow-helper",
+                  "actionName": "stopFlow",
+                  "sampleData": {},
+                  "pieceVersion": "0.1.3",
+                  "propertySettings": {},
+                  "errorHandlingOptions": {
+                    "retryOnFailure": {
+                      "value": false
+                    },
+                    "continueOnFailure": {
+                      "value": false
+                    }
+                  }
+                },
+                "displayName": "Stop Flow",
+                "lastUpdatedDate": "2026-03-29T14:51:13.498Z"
+              }
+            ],
+            "settings": {
+              "branches": [
+                {
+                  "branchName": "Branch 1",
+                  "branchType": "CONDITION",
+                  "conditions": [
+                    [
+                      {
+                        "operator": "BOOLEAN_IS_FALSE",
+                        "firstValue": "{{step_1['ignore']}}"
+                      }
+                    ]
+                  ]
+                },
+                {
+                  "branchName": "Otherwise",
+                  "branchType": "FALLBACK"
+                }
+              ],
+              "sampleData": {},
+              "executionType": "EXECUTE_FIRST_MATCH"
+            },
+            "displayName": "Router",
+            "lastUpdatedDate": "2026-03-29T14:51:13.486Z"
+          },
+          "displayName": "Code",
+          "lastUpdatedDate": "2026-03-29T14:51:13.486Z"
+        },
+        "lastUpdatedDate": "2026-03-29T14:51:13.486Z",
+        "type": "PIECE_TRIGGER",
+        "settings": {
+          "propertySettings": {
+            "authType": {
+              "type": "MANUAL"
+            },
+            "authFields": {
+              "type": "MANUAL",
+              "schema": {}
+            },
+            "liveMarkdown": {
+              "type": "MANUAL"
+            },
+            "syncMarkdown": {
+              "type": "MANUAL"
+            },
+            "testMarkdown": {
+              "type": "MANUAL"
+            }
+          },
+          "pieceName": "@activepieces/piece-webhook",
+          "pieceVersion": "0.1.32",
+          "triggerName": "catch_webhook",
+          "input": {
+            "authType": "none",
+            "authFields": {}
+          }
+        }
+      },
+      "valid": true,
+      "schemaVersion": "18",
+      "notes": []
+    }
+  ],
+  "status": "PUBLISHED"
+}
