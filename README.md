@@ -44,7 +44,15 @@ No paid WhatsApp Business API. No complex setup. Just scan a QR code and you're 
 ## 🏗️ Architecture
 
 <p align="center">
-  <img src="./waha-architecture.png" alt="Zariya Architecture" width="100%"/>
+  <img src="https://raw.githubusercontent.com/ANUBHAV-03042004/zariya-whatsapp2gmail/main/architecture/waha-architecture.svg" alt="Zariya Architecture" width="100%"/>
+</p>
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ANUBHAV-03042004/zariya-whatsapp2gmail/main/architecture/architecture1.png" width="32%"/>
+  <img src="https://raw.githubusercontent.com/ANUBHAV-03042004/zariya-whatsapp2gmail/main/architecture/architecture2.png" width="32%"/>
+  <img src="https://raw.githubusercontent.com/ANUBHAV-03042004/zariya-whatsapp2gmail/main/architecture/architecture3.png" width="32%"/>
 </p>
 
 ### How it works — step by step
@@ -160,14 +168,13 @@ WAHA also comes with a **built-in Swagger UI** at `/docs` — which was invaluab
   <table>
     <tr>
       <td align="center">
-        <img src="./badges/webhookWizard.gif" alt="Webhook Wizard" width="150"/><br/>
+        <img src="https://raw.githubusercontent.com/ANUBHAV-03042004/zariya-whatsapp2gmail/main/webhook-wizard-badge.gif" width="150"/><br/>
         <b>🧙 Webhook Wizard</b><br/>
         <sub>I used webhooks and my triggers are endless now.</sub>
       </td>
     </tr>
   </table>
 </div>
-
 ---
 
 ## 🚀 How I Built This
