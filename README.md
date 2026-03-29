@@ -1,11 +1,11 @@
-# 📬 Mitram — WhatsApp to Gmail Bot
+# 📬 Zariya — WhatsApp to Gmail Bot
 
 <div align="center">
 <p align="center">
   <img src="https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3OXZ6Y3dkZGR0a2pwb3V0enJka3JlcDNuc2xnc3Zxbml6YnE5eDhwdCZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/2DMN31jEeBLVJQGXz6/giphy.gif" alt="Mitram header" width="45%"/>
 </p>
 
-> *"Mitram" — Sanskrit for friend. A bot that acts like a trustworthy friend — listens to you on WhatsApp, understands your informal words, and delivers a polished formal email on your behalf.*
+> *"Zariya" — Urdu for Medium . A bot that acts like a trustworthy Bridge — listens to you on WhatsApp, understands your informal words, and delivers a polished formal email on your behalf.*
 
 ![Built with Activepieces](https://img.shields.io/badge/Built%20with-Activepieces-7C3AED?style=for-the-badge)
 ![WAHA](https://img.shields.io/badge/WhatsApp-WAHA%20API-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)
@@ -19,9 +19,9 @@
 
 ---
 
-## 🧠 What is Mitram?
+## 🧠 What is Zariya?
 
-**Mitram** is a personal WhatsApp bot that lets you send formal emails just by chatting casually on WhatsApp — in any language, in any informal tone. You type "bhai dhrub ko bol do meeting cancel hai" and Mitram sends a professionally worded email on your behalf.
+**Zariya** is a personal WhatsApp bot that lets you send formal emails just by chatting casually on WhatsApp — in any language, in any informal tone. You type "bhai dhruv ko bol do meeting cancel hai" and Zariya sends a professionally worded email on your behalf.
 
 It runs entirely on [Activepieces](https://activepieces.com), uses [WAHA](https://waha.devlike.pro) (WhatsApp HTTP API) hosted on a **HuggingFace Space** to connect to WhatsApp, and uses **Groq AI (LLaMA 3.3 70B)** to convert your informal message into a polished formal email — complete with attachments.
 
@@ -44,7 +44,7 @@ No paid WhatsApp Business API. No complex setup. Just scan a QR code and you're 
 ## 🏗️ Architecture
 
 <p align="center">
-  <img src="./waha-architecture.svg" alt="Mitram Architecture" width="100%"/>
+  <img src="./waha-architecture.png" alt="Zariya Architecture" width="100%"/>
 </p>
 
 ### How it works — step by step
@@ -160,16 +160,6 @@ WAHA also comes with a **built-in Swagger UI** at `/docs` — which was invaluab
   <table>
     <tr>
       <td align="center">
-        <img src="./badges/firstBuild.gif" alt="First Build" width="150"/><br/>
-        <b>🏗️ First Build</b><br/>
-        <sub>I published my first flow and automation is officially real.</sub>
-      </td>
-      <td align="center">
-        <img src="./badges/codingChad.gif" alt="Coding Chad" width="150"/><br/>
-        <b>💻 Coding Chad</b><br/>
-        <sub>I used custom code and made my flow do tricks no one else can.</sub>
-      </td>
-      <td align="center">
         <img src="./badges/webhookWizard.gif" alt="Webhook Wizard" width="150"/><br/>
         <b>🧙 Webhook Wizard</b><br/>
         <sub>I used webhooks and my triggers are endless now.</sub>
@@ -251,8 +241,6 @@ In Swagger UI → `PUT /api/sessions/default`:
 {
   "config": {
     "webhooks": [{
-      "url": "YOUR_ACTIVEPIECES_WEBHOOK_URL",
-      "events": ["message.any"]
     }]
   }
 }
