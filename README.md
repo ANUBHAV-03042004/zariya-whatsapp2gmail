@@ -1,4 +1,4 @@
-# 📬 Zariya — WhatsApp to Gmail Bot
+# 🌉 Zariya — WhatsApp to Gmail Bot
 
 <div align="center">
 <p align="center">
