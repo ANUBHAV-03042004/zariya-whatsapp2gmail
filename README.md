@@ -175,7 +175,6 @@ WAHA also comes with a **built-in Swagger UI** at `/docs` — which was invaluab
     </tr>
   </table>
 </div>
----
 
 ## 🚀 How I Built This
 
